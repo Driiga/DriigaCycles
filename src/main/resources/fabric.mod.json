@@ -23,7 +23,11 @@
 		],
       "client": [
         "net.driiga.DriigaCyclesClient"
+      ],
+      "terrablender": [
+        "net.driiga.world.biome.ModTerrablenderAPI"
       ]
+
 	},
 	"mixins": [
 		"driiga-cycles.mixins.json"

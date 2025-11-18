@@ -1,7 +1,16 @@
 package net.driiga;
 
+import net.driiga.block.ModBlocks;
+import net.driiga.entity.ModEntities;
+import net.driiga.entity.custom.RollyEntity;
+import net.driiga.fluid.ModFluids;
+import net.driiga.item.ModItems;
+import net.driiga.world.dimension.ModDimensions;
 import net.fabricmc.api.ModInitializer;
 
+import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
+import net.kyrptonaught.customportalapi.api.CustomPortalBuilder;
+import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,5 +29,21 @@ public class DriigaCycles implements ModInitializer {
 		// Proceed with mild caution.
 
 		LOGGER.info("Hello Fabric world!");
+
+        ModBlocks.registerModBlocks();
+        ModItems.registerModItems();
+        ModFluids.register();
+
+        ModEntities.registerModEntities();
+        FabricDefaultAttributeRegistry.register(ModEntities.ROLLY, RollyEntity.createAttributes());
+
+        CustomPortalBuilder.beginPortal()
+                .frameBlock(ModBlocks.CONDENSED_MATTER_BLOCK)
+                .lightWithFluid(ModFluids.STILL_ABYSS_FLUID)
+                .destDimID(Identifier.of(DriigaCycles.MOD_ID, "abyssdim"))
+                .tintColor(0x8f8f8f)
+                .flatPortal()
+                .registerPortal();
+
 	}
 }
