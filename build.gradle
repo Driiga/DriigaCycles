@@ -19,6 +19,23 @@ repositories {
 
     maven { url = 'https://maven.minecraftforge.net/' }
     maven {url = "https://maven.kyrptonaught.dev"}
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+    }
+
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'SmartBrainLib'
+                url = 'https://dl.cloudsmith.io/public/tslat/sbl/maven/'
+            }
+        }
+        filter {
+            includeGroup('net.tslat.smartbrainlib')
+        }
+    }
+
 }
 
 fabricApi {
@@ -40,6 +57,11 @@ dependencies {
 
     modImplementation 'net.kyrptonaught:customportalapi:0.0.1-beta67-1.21'
     include 'net.kyrptonaught:customportalapi:0.0.1-beta67-1.21'
+
+    modImplementation("maven.modrinth:seasons-api:1.2-BETA-4")
+
+    modImplementation "net.tslat.smartbrainlib:SmartBrainLib-fabric-1.21.1:1.16.11"
+    // Example: modImplementation "net.tslat.smartbrainlib:SmartBrainLib-fabric-1.21.1:1.16.5"
 }
 
 processResources {

@@ -2,6 +2,7 @@ package net.driiga;
 
 import net.driiga.datagen.*;
 import net.driiga.world.biome.ModBiomes;
+
 import net.driiga.world.dimension.ModDimensions;
 import net.fabricmc.fabric.api.datagen.v1.DataGeneratorEntrypoint;
 import net.fabricmc.fabric.api.datagen.v1.FabricDataGenerator;
@@ -28,6 +29,7 @@ public class DriigaCyclesDataGenerator implements DataGeneratorEntrypoint {
 
         registryBuilder.addRegistry(RegistryKeys.BIOME, ModBiomes::boostrap);
         registryBuilder.addRegistry(RegistryKeys.DIMENSION_TYPE, ModDimensions::bootstrapType);
+
     }
 }
 

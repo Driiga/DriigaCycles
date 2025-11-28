@@ -2,16 +2,34 @@
   "type": "driiga-cycles:abyssdim_type",
   "generator": {
     "type": "minecraft:noise",
-    "settings": "minecraft:overworld",
+    "settings": "driiga-cycles:abyssdim",
     "biome_source": {
       "type": "minecraft:multi_noise",
       "biomes": [
+        {
+          "biome": "driiga-cycles:abyss_sea_biome",
+          "parameters": {
+            "temperature": 0,
+            "humidity": 0,
+            "continentalness": [
+              -1.3,
+              0.9
+            ],
+            "erosion": 0,
+            "weirdness": 0,
+            "depth": 0,
+            "offset": 0
+          }
+        },
         {
           "biome": "driiga-cycles:abyss_land_biome",
           "parameters": {
             "temperature": 0,
             "humidity": 0,
-            "continentalness": 0,
+            "continentalness": [
+              0.91,
+              1.3
+            ],
             "erosion": 0,
             "weirdness": 0,
             "depth": 0,

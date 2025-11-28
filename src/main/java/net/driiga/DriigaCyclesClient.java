@@ -1,8 +1,11 @@
 package net.driiga;
 
 import net.driiga.entity.ModEntities;
-import net.driiga.entity.client.RollyModel;
-import net.driiga.entity.client.RollyRenderer;
+import net.driiga.entity.client.absolver.AbsolverModel;
+import net.driiga.entity.client.absolver.AbsolverRenderer;
+import net.driiga.entity.client.rolly.RollyModel;
+import net.driiga.entity.client.rolly.RollyRenderer;
+import net.driiga.entity.custom.AbsolverEntity;
 import net.driiga.fluid.ModFluids;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
@@ -11,11 +14,7 @@ import net.fabricmc.fabric.api.client.render.fluid.v1.SimpleFluidRenderHandler;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.texture.Sprite;
 import net.minecraft.util.Identifier;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.Objects;
 
 public class DriigaCyclesClient implements ClientModInitializer {
 
@@ -37,7 +36,14 @@ public class DriigaCyclesClient implements ClientModInitializer {
                 ModFluids.STILL_ABYSS_FLUID, ModFluids.FLOWING_ABYSS_FLUID);
 
 
+        EntityRendererRegistry.register(ModEntities.ABSOLVER, AbsolverRenderer::new);
+        EntityModelLayerRegistry.registerModelLayer(AbsolverModel.ABSOLVER, AbsolverModel::getTexturedModelData);
+
         EntityModelLayerRegistry.registerModelLayer(RollyModel.ROLLY, RollyModel::getTexturedModelData);
         EntityRendererRegistry.register(ModEntities.ROLLY, RollyRenderer::new);
+
+
+//        EntityRendererRegistry.register(ModEntities.ABSOLVER, AbsolverRenderer::new);
+//        EntityModelLayerRegistry.registerModelLayer(AbsolverModel.ABSOLVER, AbsolverModel::getTexturedModelData);
     }
 }

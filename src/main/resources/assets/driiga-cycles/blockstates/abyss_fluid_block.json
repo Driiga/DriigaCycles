@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "driiga-cycles:block/abyss_fluid_block"
+    }
+  }
+}

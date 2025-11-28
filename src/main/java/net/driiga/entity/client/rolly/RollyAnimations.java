@@ -1,4 +1,4 @@
-package net.driiga.entity.client;
+package net.driiga.entity.client.rolly;
 
 import net.minecraft.client.render.entity.animation.Animation;
 import net.minecraft.client.render.entity.animation.AnimationHelper;

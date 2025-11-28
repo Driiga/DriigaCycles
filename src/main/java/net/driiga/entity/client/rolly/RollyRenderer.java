@@ -1,4 +1,4 @@
-package net.driiga.entity.client;
+package net.driiga.entity.client.rolly;
 
 import net.driiga.DriigaCycles;
 import net.driiga.entity.custom.RollyEntity;

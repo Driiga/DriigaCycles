@@ -1,6 +1,7 @@
 package net.driiga.datagen;
 
 import net.driiga.block.ModBlocks;
+import net.driiga.fluid.AbyssFluid;
 import net.driiga.fluid.ModFluids;
 import net.driiga.item.ModItems;
 import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
@@ -33,6 +34,8 @@ public class ModModelProvider extends FabricModelProvider {
         itemModelGenerator.register(ModFluids.ABYSS_FLUID_BUCKET, Models.GENERATED);
 
         itemModelGenerator.register(ModItems.ROLLY_SPAWN_EGG,
+                new Model(Optional.of(Identifier.of("item/template_spawn_egg")), Optional.empty()));
+        itemModelGenerator.register(ModItems.ABSOLVER_SPAWN_EGG,
                 new Model(Optional.of(Identifier.of("item/template_spawn_egg")), Optional.empty()));
     }
 }

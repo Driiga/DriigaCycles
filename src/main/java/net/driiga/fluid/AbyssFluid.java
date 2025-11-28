@@ -1,126 +1,126 @@
 package net.driiga.fluid;
 
+import net.driiga.DriigaCycles;
+import net.driiga.block.ModBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.FluidBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.fluid.FlowableFluid;
 import net.minecraft.fluid.Fluid;
 import net.minecraft.fluid.FluidState;
+import net.minecraft.fluid.Fluids;
 import net.minecraft.item.Item;
+import net.minecraft.item.Items;
+import net.minecraft.particle.ParticleEffect;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.tag.FluidTags;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.state.StateManager;
-import net.minecraft.state.property.Properties;
+import net.minecraft.state.property.Property;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
-import net.minecraft.world.BlockView;
-import net.minecraft.world.World;
-import net.minecraft.world.WorldAccess;
-import net.minecraft.world.WorldView;
+import net.minecraft.util.math.random.Random;
+import net.minecraft.world.*;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Optional;
 
 public abstract class AbyssFluid extends FlowableFluid {
-
-    @Override
-    protected boolean isInfinite(World world) {
-        return false;
-    }
-
-    @Override
-    protected void beforeBreakingBlock(WorldAccess world, BlockPos pos, BlockState state) {
-        final BlockEntity blockEntity = state.hasBlockEntity() ? world.getBlockEntity(pos) : null;
-        Block.dropStacks(state, world, pos, blockEntity);
-    }
-
-    @Override
-    protected int getLevelDecreasePerBlock(WorldView world) {
-        return 1;
-    }
-
-    @Override
-    public boolean matchesType(Fluid fluid) {
-        return fluid == getStill() || fluid == getFlowing();
-    }
-
-    @Override
-    public int getLevel(FluidState state) {
-        return 0;
-    }
-
-    @Override
-    public int getTickRate(WorldView world) {
-        return 5;
-    }
-
-    @Override
-    protected float getBlastResistance() {
-        return 100f;
-    }
-
-    @Override
-    protected boolean canBeReplacedWith(FluidState state, BlockView world, BlockPos pos, Fluid fluid, Direction direction) {
-        return false;
-    }
-
-    @Override
-    public Fluid getStill() {
-        return ModFluids.STILL_ABYSS_FLUID;
-    }
-
-    @Override
     public Fluid getFlowing() {
         return ModFluids.FLOWING_ABYSS_FLUID;
     }
 
-    @Override
+    public Fluid getStill() {
+        return ModFluids.STILL_ABYSS_FLUID;
+    }
+
     public Item getBucketItem() {
         return ModFluids.ABYSS_FLUID_BUCKET;
     }
 
-    @Override
-    protected BlockState toBlockState(FluidState state) {
-        return ModFluids.ABYSS_FLUID_BLOCK.getDefaultState().with(Properties.LEVEL_15, getBlockStateLevel(state));
+    public void randomDisplayTick(World world, BlockPos pos, FluidState state, Random random) {
+        if (!state.isStill() && !(Boolean)state.get(FALLING)) {
+            if (random.nextInt(64) == 0) {
+                world.playSound((double)pos.getX() + (double)0.5F, (double)pos.getY() + (double)0.5F, (double)pos.getZ() + (double)0.5F, SoundEvents.BLOCK_WATER_AMBIENT, SoundCategory.BLOCKS, random.nextFloat() * 0.25F + 0.75F, random.nextFloat() + 0.5F, false);
+            }
+        } else if (random.nextInt(10) == 0) {
+            world.addParticle(ParticleTypes.UNDERWATER, (double)pos.getX() + random.nextDouble(), (double)pos.getY() + random.nextDouble(), (double)pos.getZ() + random.nextDouble(), (double)0.0F, (double)0.0F, (double)0.0F);
+        }
+
     }
 
-    @Override
-    public boolean isStill(FluidState state) {
-        return false;
+    @Nullable
+    public ParticleEffect getParticle() {
+        return ParticleTypes.DRIPPING_WATER;
     }
 
-    public static class Flowing extends AbyssFluid {
-        @Override
-        protected void appendProperties(StateManager.Builder<Fluid, FluidState> builder) {
-            super.appendProperties(builder);
-            builder.add(LEVEL);
-        }
-
-        @Override
-        protected int getMaxFlowDistance(WorldView world) {
-            return 0;
-        }
-
-        @Override
-        public int getLevel(FluidState state) {
-            return state.get(LEVEL);
-        }
-
-        @Override
-        public boolean isStill(FluidState state) {
-            return false;
-        }
+    protected boolean isInfinite(World world) {
+        return world.getGameRules().getBoolean(GameRules.WATER_SOURCE_CONVERSION);
     }
 
-    public static class Still extends AbyssFluid {
-        @Override
-        protected int getMaxFlowDistance(WorldView world) {
-            return 0;
-        }
+    protected void beforeBreakingBlock(WorldAccess world, BlockPos pos, BlockState state) {
+        BlockEntity blockEntity = state.hasBlockEntity() ? world.getBlockEntity(pos) : null;
+        Block.dropStacks(state, world, pos, blockEntity);
+    }
 
-        @Override
+    public int getMaxFlowDistance(WorldView world) {
+        return 4;
+    }
+
+    public BlockState toBlockState(FluidState state) {
+        return (BlockState) ModBlocks.ABYSS_FLUID_BLOCK.getDefaultState().with(FluidBlock.LEVEL, getBlockStateLevel(state));
+    }
+
+    public boolean matchesType(Fluid fluid) {
+        return fluid == ModFluids.STILL_ABYSS_FLUID || fluid == ModFluids.FLOWING_ABYSS_FLUID;
+    }
+
+    public int getLevelDecreasePerBlock(WorldView world) {
+        return 1;
+    }
+
+    public int getTickRate(WorldView world) {
+        return 5;
+    }
+
+    public boolean canBeReplacedWith(FluidState state, BlockView world, BlockPos pos, Fluid fluid, Direction direction) {
+        return direction == Direction.DOWN && !fluid.isIn(FluidTags.WATER);
+    }
+
+    protected float getBlastResistance() {
+        return 100.0F;
+    }
+
+    public Optional<SoundEvent> getBucketFillSound() {
+        return Optional.of(SoundEvents.ITEM_BUCKET_FILL);
+    }
+
+    public static class Still extends net.driiga.fluid.AbyssFluid {
         public int getLevel(FluidState state) {
             return 8;
         }
 
-        @Override
         public boolean isStill(FluidState state) {
             return true;
+        }
+    }
+
+    public static class Flowing extends net.driiga.fluid.AbyssFluid {
+        protected void appendProperties(StateManager.Builder<Fluid, FluidState> builder) {
+            super.appendProperties(builder);
+            builder.add(new Property[]{LEVEL});
+        }
+
+        public int getLevel(FluidState state) {
+            return (Integer)state.get(LEVEL);
+        }
+
+        public boolean isStill(FluidState state) {
+            return false;
         }
     }
 }
