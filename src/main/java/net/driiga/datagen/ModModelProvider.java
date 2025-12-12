@@ -31,6 +31,7 @@ public class ModModelProvider extends FabricModelProvider {
     public void generateItemModels(ItemModelGenerator itemModelGenerator) {
 
         itemModelGenerator.register(ModItems.RAW_ENTROPIC_METAL, Models.GENERATED);
+        itemModelGenerator.register(ModItems.ENTROPIC_METAL_INGOT, Models.GENERATED);
         itemModelGenerator.register(ModFluids.ABYSS_FLUID_BUCKET, Models.GENERATED);
 
         itemModelGenerator.register(ModItems.ROLLY_SPAWN_EGG,

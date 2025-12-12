@@ -2,6 +2,7 @@ package net.driiga.util;
 
 import net.driiga.DriigaCycles;
 import net.minecraft.block.Block;
+import net.minecraft.entity.EntityType;
 import net.minecraft.item.Item;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.TagKey;
@@ -13,6 +14,15 @@ public class ModTags {
         private static TagKey<Block> createTag(String name) {
             return TagKey.of(RegistryKeys.BLOCK, Identifier.of(DriigaCycles.MOD_ID, name));
         }
+    }
+
+    public static class Entity {
+        public static final TagKey<EntityType<?>> ABSOLVER_FRIENDS = createTag("absolver_friends");
+
+        private static TagKey<EntityType<?>> createTag(String name) {
+            return TagKey.of(RegistryKeys.ENTITY_TYPE, Identifier.of(DriigaCycles.MOD_ID, name));
+        }
+
     }
 
     public static class Items {

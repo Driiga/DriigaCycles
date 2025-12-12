@@ -1,143 +1,209 @@
 package net.driiga.entity.custom;
 
-import net.minecraft.entity.AnimationState;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.SpawnReason;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ObjectArrays;
+import net.driiga.util.ModTags;
+import net.minecraft.block.BlockState;
+import net.minecraft.entity.*;
+import net.minecraft.entity.ai.RangedAttackMob;
+import net.minecraft.entity.ai.TargetPredicate;
 import net.minecraft.entity.ai.control.MoveControl;
 import net.minecraft.entity.ai.goal.*;
+import net.minecraft.entity.ai.pathing.BirdNavigation;
+import net.minecraft.entity.ai.pathing.EntityNavigation;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
-import net.minecraft.entity.mob.FlyingEntity;
-import net.minecraft.entity.mob.GhastEntity;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.mob.Monster;
+import net.minecraft.entity.mob.*;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.projectile.FireballEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.registry.tag.DamageTypeTags;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
-import net.minecraft.world.Difficulty;
+import net.minecraft.world.GameRules;
 import net.minecraft.world.World;
-import net.minecraft.world.WorldAccess;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
+import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Predicate;
 
-public class AbsolverEntity extends FlyingEntity implements Monster {
-    private static final TrackedData<Boolean> SHOOTING;
-    private int fireballStrength = 1;
+import static net.driiga.DriigaCycles.MOD_ID;
+
+
+public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    public final AnimationState idleAnimationState = new AnimationState();
+    private int idleAnimationTimeout = 0;
+    private static final TrackedData<Integer> TRACKED_ENTITY_ID_1;
+    private int blockBreakingCooldown;
+    private static final Predicate<LivingEntity> CAN_ATTACK_PREDICATE;
+    private static final TargetPredicate HEAD_TARGET_PREDICATE;
+
+    //Lances
+    private static final TrackedData<Integer> TRACKED_LANCE_ID_1;
+    private static final TrackedData<Integer> TRACKED_LANCE_ID_2;
+    private static final TrackedData<Integer> TRACKED_LANCE_ID_3;
+    private static final TrackedData<Integer> TRACKED_LANCE_ID_4;
+    private static final TrackedData<Integer> TRACKED_LANCE_ID_5;
+    private static final List<TrackedData<Integer>> TRACKED_LANCES_IDS;
+    private static final TrackedData<Boolean> HAS_LANCES;
+    private int lancesSummonCooldown = 20;
+    private int lancesShootCooldown = -60;
+
+    /// создание моба
 
     public AbsolverEntity(EntityType<? extends AbsolverEntity> entityType, World world) {
         super(entityType, world);
-        this.experiencePoints = 5;
         this.moveControl = new AbsolverMoveControl(this);
     }
 
-    protected void initGoals() {
-        this.goalSelector.add(5, new FlyRandomlyGoal(this));
-        this.goalSelector.add(7, new LookAtTargetGoal(this));
-        this.goalSelector.add(7, new ShootFireballGoal(this));
-        //this.targetSelector.add(1, new ActiveTargetGoal(this, PlayerEntity.class, 10, true, false, (entity) -> Math.abs(entity.getY() - this.getY()) <= (double)4.0F));
+    public static DefaultAttributeContainer.Builder createAttributes() {
+        return MobEntity.createMobAttributes()
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 6)
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.6)
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 1)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 40)
+                .add(EntityAttributes.GENERIC_FLYING_SPEED, (double) 0.6F);
     }
 
-    public boolean isShooting() {
-        return (Boolean)this.dataTracker.get(SHOOTING);
+    /// прочие настройки моба
+
+    public static boolean canDestroy(BlockState block) {
+        return !block.isAir() && !block.isIn(BlockTags.WITHER_IMMUNE);
     }
 
-    public void setShooting(boolean shooting) {
-        this.dataTracker.set(SHOOTING, shooting);
+    public int getTrackedEntityId() {
+        return (Integer) this.dataTracker.get(TRACKED_ENTITY_ID_1);
     }
 
-    public int getFireballStrength() {
-        return this.fireballStrength;
+    public void setTrackedEntityId(int id) {
+        this.dataTracker.set(TRACKED_ENTITY_ID_1, id);
     }
 
-    protected boolean isDisallowedInPeaceful() {
-        return true;
+    public int getTrackedLancesId(int lanceIndex) {
+        return (Integer) this.dataTracker.get((TrackedData) TRACKED_LANCES_IDS.get(lanceIndex));
     }
 
-    private static boolean isFireballFromPlayer(DamageSource damageSource) {
-        return damageSource.getSource() instanceof FireballEntity && damageSource.getAttacker() instanceof PlayerEntity;
+    public void setTrackedLancesId(int lanceIndex, int id) {
+        this.dataTracker.set((TrackedData) TRACKED_LANCES_IDS.get(lanceIndex), id);
     }
 
-    public boolean isInvulnerableTo(DamageSource damageSource) {
-        return this.isInvulnerable() && !damageSource.isIn(DamageTypeTags.BYPASSES_INVULNERABILITY) || !isFireballFromPlayer(damageSource) && super.isInvulnerableTo(damageSource);
+    public boolean getLanceStatus() {
+        return (Boolean) this.dataTracker.get(HAS_LANCES);
     }
 
-    public boolean damage(DamageSource source, float amount) {
-        if (isFireballFromPlayer(source)) {
-            super.damage(source, 1000.0F);
-            return true;
-        } else {
-            return this.isInvulnerableTo(source) ? false : super.damage(source, amount);
+    public void setLanceStatus(boolean has_lances) {
+        this.dataTracker.set(HAS_LANCES, has_lances);
+    }
+
+    private void   summoneHaloOfLances() {
+
+        double X = this.getX();
+        double Y = this.getY();
+        double Z = this.getZ();
+
+        Vec3d vec3d1 = new Vec3d(this.getFacing().getUnitVector().rotateY(-40)).multiply(2);
+        Vec3d vec3d2 = new Vec3d(this.getFacing().getUnitVector().rotateY(-20)).multiply(2);
+        Vec3d vec3d3 = new Vec3d(this.getFacing().getUnitVector().rotateY(0)).multiply(2);
+        Vec3d vec3d4 = new Vec3d(this.getFacing().getUnitVector().rotateY(20)).multiply(2);
+        Vec3d vec3d5 = new Vec3d(this.getFacing().getUnitVector().rotateY(40)).multiply(2);
+
+        Vec3d[] vecArray = {vec3d1, vec3d2, vec3d3, vec3d4, vec3d5};
+
+        for (int i = 0; i < 5; i++) {
+            LightLanceProjectileEntity LightLanceProjectileEntity = new LightLanceProjectileEntity(this.getWorld(), this, new Vec3d(0, 0, 0));
+            LightLanceProjectileEntity.setOwner(this);
+
+            LightLanceProjectileEntity.setPos(X + vecArray[i].x, Y + vecArray[i].y + 6, Z + vecArray[i].z);
+            this.getWorld().spawnEntity(LightLanceProjectileEntity);
+            this.setTrackedLancesId(i, LightLanceProjectileEntity.getId());
         }
+        this.setLanceStatus(true);
+    }
+
+
+    private void shootLancesAt(LivingEntity target) {
+        this.shootLancesAt(target.getX(), (target.getY() + (double) target.getStandingEyeHeight() * (double) 0.5F), target.getZ());
+    }
+
+    private void shootLancesAt(double targetX, double targetY, double targetZ) {
+
+        this.setLanceStatus(false);
+        int delay = 5000;
+        int count = 0;
+
+        for (int i = 0; i < 5; i++) {
+
+            while (count < delay) {
+                count++;
+            }
+
+            double X = this.getWorld().getEntityById(getTrackedLancesId(i)).getX();
+            double Y = this.getWorld().getEntityById(getTrackedLancesId(i)).getY();
+            double Z = this.getWorld().getEntityById(getTrackedLancesId(i)).getZ();
+            double tX = targetX - X - this.random.nextBetweenExclusive(0,2);
+            double tY = targetY - Y - this.random.nextBetweenExclusive(0,1);
+            double tZ = targetZ - Z - this.random.nextBetweenExclusive(0,2);
+            Vec3d vec3d = new Vec3d(tX, tY, tZ);
+
+
+            getWorld().getEntityById(getTrackedLancesId(i)).setVelocity(vec3d.normalize());
+            count = 0;
+        }
+    }
+
+    public void shootAt(LivingEntity target, float pullProgress) {
+        this.shootLancesAt(target);
+    }
+
+    @Override
+    protected boolean isDisallowedInPeaceful() {
+        return false;
     }
 
     protected void initDataTracker(DataTracker.Builder builder) {
         super.initDataTracker(builder);
-        builder.add(SHOOTING, false);
-    }
-
-    public static DefaultAttributeContainer.Builder createAttributes() {
-        return MobEntity.createMobAttributes().add(EntityAttributes.GENERIC_MAX_HEALTH, (double)10.0F).add(EntityAttributes.GENERIC_FOLLOW_RANGE, (double)100.0F);
-    }
-
-    public SoundCategory getSoundCategory() {
-        return SoundCategory.HOSTILE;
-    }
-
-    protected SoundEvent getAmbientSound() {
-        return SoundEvents.ENTITY_GHAST_AMBIENT;
-    }
-
-    protected SoundEvent getHurtSound(DamageSource source) {
-        return SoundEvents.ENTITY_GHAST_HURT;
-    }
-
-    protected SoundEvent getDeathSound() {
-        return SoundEvents.ENTITY_GHAST_DEATH;
-    }
-
-    protected float getSoundVolume() {
-        return 5.0F;
-    }
-
-    public static boolean canSpawn(EntityType<AbsolverEntity> type, WorldAccess world, SpawnReason spawnReason, BlockPos pos, Random random) {
-        return world.getDifficulty() != Difficulty.PEACEFUL && random.nextInt(20) == 0 && canMobSpawn(type, world, spawnReason, pos, random);
-    }
-
-    public int getLimitPerChunk() {
-        return 1;
-    }
-
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
-        nbt.putByte("ExplosionPower", (byte)this.fireballStrength);
-    }
-
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        if (nbt.contains("ExplosionPower", 99)) {
-            this.fireballStrength = nbt.getByte("ExplosionPower");
-        }
-
+        builder.add(TRACKED_ENTITY_ID_1, 0);
+        builder.add(HAS_LANCES, false);
+        builder.add(TRACKED_LANCE_ID_1, 0);
+        builder.add(TRACKED_LANCE_ID_2, 0);
+        builder.add(TRACKED_LANCE_ID_3, 0);
+        builder.add(TRACKED_LANCE_ID_4, 0);
+        builder.add(TRACKED_LANCE_ID_5, 0);
     }
 
     static {
-        SHOOTING = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+        TRACKED_ENTITY_ID_1 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
+        CAN_ATTACK_PREDICATE = (entity) -> !entity.getType().isIn(ModTags.Entity.ABSOLVER_FRIENDS) && entity.isMobOrPlayer();
+        HEAD_TARGET_PREDICATE = TargetPredicate.createAttackable().setBaseMaxDistance((double) 20.0F).setPredicate(CAN_ATTACK_PREDICATE);
+        HAS_LANCES = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+        TRACKED_LANCE_ID_1 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
+        TRACKED_LANCE_ID_2 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
+        TRACKED_LANCE_ID_3 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
+        TRACKED_LANCE_ID_4 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
+        TRACKED_LANCE_ID_5 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
+        TRACKED_LANCES_IDS = ImmutableList.of(TRACKED_LANCE_ID_1, TRACKED_LANCE_ID_2, TRACKED_LANCE_ID_3, TRACKED_LANCE_ID_4, TRACKED_LANCE_ID_5);
     }
+
+    /// поведение
+
+    protected void initGoals() {
+        this.goalSelector.add(5, new FlyRandomlyGoal(this));
+        this.goalSelector.add(7, new LookAtTargetGoal(this));
+        this.targetSelector.add(2, new ActiveTargetGoal(this, LivingEntity.class, 0, false, false, CAN_ATTACK_PREDICATE));
+    }
+
+    /// передвижение
 
     static class AbsolverMoveControl extends MoveControl {
         private final AbsolverEntity absolver;
@@ -179,6 +245,95 @@ public class AbsolverEntity extends FlyingEntity implements Monster {
         }
     }
 
+
+    /// --------------------------------------- ///
+
+
+    public void mobTick() {
+        super.mobTick();
+
+        this.lancesShootCooldown++;
+        this.lancesSummonCooldown++;
+        //LOGGER.info(" ---- ");
+
+        if (this.getLanceStatus() == false) {
+            if (this.lancesSummonCooldown > 80) {
+                this.lancesSummonCooldown = 0 + this.random.nextInt(10);
+                this.summoneHaloOfLances();
+
+            }
+
+        } else { //has Lances
+
+            Vec3d vec3d1 = new Vec3d(this.getFacing().getUnitVector().rotateY(-40)).multiply(2);
+            Vec3d vec3d2 = new Vec3d(this.getFacing().getUnitVector().rotateY(-20)).multiply(2);
+            Vec3d vec3d3 = new Vec3d(this.getFacing().getUnitVector().rotateY(0)).multiply(2);
+            Vec3d vec3d4 = new Vec3d(this.getFacing().getUnitVector().rotateY(20)).multiply(2);
+            Vec3d vec3d5 = new Vec3d(this.getFacing().getUnitVector().rotateY(40)).multiply(2);
+
+            Vec3d[] vecArray = {vec3d1, vec3d2, vec3d3, vec3d4, vec3d5};
+
+            for (int i = 0; i < 5; i++) {
+                Entity lance = this.getWorld().getEntityById(getTrackedLancesId(i));
+//                Vec3d vec3d1 = new Vec3d(lance.getFacing().getUnitVector()).multiply(0.5);
+//                Vec3d vec3d2 = new Vec3d(this.getX() - lance.getX(), this.getY() +5 - lance.getY(), this.getZ() - lance.getZ()).multiply(0.5);
+//                Vec3d vec3d3 = new Vec3d(vec3d1.toVector3f().add(vec3d2.toVector3f()));
+                Vec3d vec3d6 = new Vec3d(this.getX() + vecArray[i].x - lance.getX(), this.getY() + 5 - lance.getY(), this.getZ() + vecArray[i].z - lance.getZ());
+                lance.setVelocity(vec3d6.multiply(0.1));
+            }
+
+
+            if (this.lancesShootCooldown > 40) {
+                int j = this.getTrackedEntityId();
+                if (j > 0) {
+                    LivingEntity livingEntity = (LivingEntity) this.getWorld().getEntityById(j);
+                    if (livingEntity != null && this.canTarget(livingEntity) && !(this.squaredDistanceTo(livingEntity) > (double) 900.0F) && this.canSee(livingEntity)) {
+                        this.setLanceStatus(false);
+                        this.shootLancesAt(livingEntity);
+                        this.lancesShootCooldown = 0 + this.random.nextInt(10);
+                    } else {
+                        this.setTrackedEntityId(0);
+                    }
+                } else {
+                    List<LivingEntity> list = this.getWorld().getTargets(LivingEntity.class, HEAD_TARGET_PREDICATE, this, this.getBoundingBox().expand((double) 20.0F, (double) 8.0F, (double) 20.0F));
+                    if (!list.isEmpty()) {
+                        LivingEntity livingEntity2 = (LivingEntity) list.get(this.random.nextInt(list.size()));
+                        this.setTrackedEntityId(livingEntity2.getId());
+                    }
+                }
+            }
+        }
+
+
+        if (this.getTarget() != null) {
+            this.setTrackedEntityId(this.getTarget().getId());
+        } else {
+            this.setTrackedEntityId(0);
+        }
+
+        if (this.blockBreakingCooldown > 0) {
+            --this.blockBreakingCooldown;
+            if (this.blockBreakingCooldown == 0 && this.getWorld().getGameRules().getBoolean(GameRules.DO_MOB_GRIEFING)) {
+                boolean bl = false;
+                int j = MathHelper.floor(this.getWidth() / 2.0F + 1.0F);
+                int k = MathHelper.floor(this.getHeight());
+
+                for (BlockPos blockPos : BlockPos.iterate(this.getBlockX() - j, this.getBlockY(), this.getBlockZ() - j, this.getBlockX() + j, this.getBlockY() + k, this.getBlockZ() + j)) {
+                    BlockState blockState = this.getWorld().getBlockState(blockPos);
+                    if (canDestroy(blockState)) {
+                        bl = this.getWorld().breakBlock(blockPos, true, this) || bl;
+                    }
+                }
+
+                if (bl) {
+                    this.getWorld().syncWorldEvent((PlayerEntity) null, 1022, this.getBlockPos(), 0);
+                }
+            }
+        }
+    }
+
+    /// --------------------------------------- ///
+
     static class FlyRandomlyGoal extends Goal {
         private final AbsolverEntity absolver;
 
@@ -196,7 +351,7 @@ public class AbsolverEntity extends FlyingEntity implements Monster {
                 double e = moveControl.getTargetY() - this.absolver.getY();
                 double f = moveControl.getTargetZ() - this.absolver.getZ();
                 double g = d * d + e * e + f * f;
-                return g < (double)1.0F || g > (double)3600.0F;
+                return g < (double) 1.0F || g > (double) 3600.0F;
             }
         }
 
@@ -205,13 +360,23 @@ public class AbsolverEntity extends FlyingEntity implements Monster {
         }
 
         public void start() {
-            Random random = this.absolver.getRandom();
-            double d = this.absolver.getX() + (double)((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
-            double e = this.absolver.getY() + (double)((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
-            double f = this.absolver.getZ() + (double)((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
-            this.absolver.getMoveControl().moveTo(d, e, f, (double)1.0F);
+            if (this.absolver.getTrackedEntityId() == 0) {
+                Random random = this.absolver.getRandom();
+                double d = this.absolver.getX() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
+                double e = this.absolver.getY() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 14.0F);
+                double f = this.absolver.getZ() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
+                this.absolver.getMoveControl().moveTo(d, e, f, (double) 1.0F);
+            } else {
+                Random random = this.absolver.getRandom();
+                double d = this.absolver.getWorld().getEntityById(this.absolver.getTrackedEntityId()).getX() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
+                double e = this.absolver.getWorld().getEntityById(this.absolver.getTrackedEntityId()).getY() + (double) ((random.nextBetween(5,10)));
+                double f = this.absolver.getWorld().getEntityById(this.absolver.getTrackedEntityId()).getZ() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
+                this.absolver.getMoveControl().moveTo(d, e, f, (double) 1.0F);
+            }
         }
     }
+
+    /// --------------------------------------- ///
 
     static class LookAtTargetGoal extends Goal {
         private final AbsolverEntity absolver;
@@ -232,79 +397,30 @@ public class AbsolverEntity extends FlyingEntity implements Monster {
         public void tick() {
             if (this.absolver.getTarget() == null) {
                 Vec3d vec3d = this.absolver.getVelocity();
-                this.absolver.setYaw(-((float)MathHelper.atan2(vec3d.x, vec3d.z)) * (180F / (float)Math.PI));
+                this.absolver.setYaw(-((float) MathHelper.atan2(vec3d.x, vec3d.z)) * (180F / (float) Math.PI));
                 this.absolver.bodyYaw = this.absolver.getYaw();
             } else {
                 LivingEntity livingEntity = this.absolver.getTarget();
-                double d = (double)64.0F;
-                if (livingEntity.squaredDistanceTo(this.absolver) < (double)4096.0F) {
+                double d = (double) 64.0F;
+                if (livingEntity.squaredDistanceTo(this.absolver) < (double) 4096.0F) {
                     double e = livingEntity.getX() - this.absolver.getX();
                     double f = livingEntity.getZ() - this.absolver.getZ();
-                    this.absolver.setYaw(-((float)MathHelper.atan2(e, f)) * (180F / (float)Math.PI));
+                    this.absolver.setYaw(-((float) MathHelper.atan2(e, f)) * (180F / (float) Math.PI));
                     this.absolver.bodyYaw = this.absolver.getYaw();
                 }
             }
 
         }
-    }
 
-    static class ShootFireballGoal extends Goal {
-        private final AbsolverEntity absolver;
-        public int cooldown;
-
-        public ShootFireballGoal(AbsolverEntity absolver) {
-            this.absolver = absolver;
-        }
-
-        public boolean canStart() {
-            return this.absolver.getTarget() != null;
-        }
-
-        public void start() {
-            this.cooldown = 0;
-        }
-
-        public void stop() {
-            this.absolver.setShooting(false);
-        }
-
-        public boolean shouldRunEveryTick() {
-            return true;
-        }
-
-        public void tick() {
-            LivingEntity livingEntity = this.absolver.getTarget();
-            if (livingEntity != null) {
-                double d = (double)64.0F;
-                if (livingEntity.squaredDistanceTo(this.absolver) < (double)4096.0F && this.absolver.canSee(livingEntity)) {
-                    World world = this.absolver.getWorld();
-                    ++this.cooldown;
-                    if (this.cooldown == 10 && !this.absolver.isSilent()) {
-                        world.syncWorldEvent((PlayerEntity)null, 1015, this.absolver.getBlockPos(), 0);
-                    }
-
-                    if (this.cooldown == 20) {
-                        double e = (double)4.0F;
-                        Vec3d vec3d = this.absolver.getRotationVec(1.0F);
-                        double f = livingEntity.getX() - (this.absolver.getX() + vec3d.x * (double)4.0F);
-                        double g = livingEntity.getBodyY((double)0.5F) - ((double)0.5F + this.absolver.getBodyY((double)0.5F));
-                        double h = livingEntity.getZ() - (this.absolver.getZ() + vec3d.z * (double)4.0F);
-                        Vec3d vec3d2 = new Vec3d(f, g, h);
-                        if (!this.absolver.isSilent()) {
-                            world.syncWorldEvent((PlayerEntity)null, 1016, this.absolver.getBlockPos(), 0);
-                        }
-
-                        FireballEntity fireballEntity = new FireballEntity(world, this.absolver, vec3d2.normalize(), this.absolver.getFireballStrength());
-                        fireballEntity.setPosition(this.absolver.getX() + vec3d.x * (double)4.0F, this.absolver.getBodyY((double)0.5F) + (double)0.5F, fireballEntity.getZ() + vec3d.z * (double)4.0F);
-                        world.spawnEntity(fireballEntity);
-                        this.cooldown = -40;
-                    }
-                } else if (this.cooldown > 0) {
-                    --this.cooldown;
-                }
-
-                this.absolver.setShooting(this.cooldown > 10);
-            }
-        }
     }
 }
+        /// --------------------------------------- ///
+
+
+
+
+
+
+
+
+

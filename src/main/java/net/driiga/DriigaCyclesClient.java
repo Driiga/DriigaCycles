@@ -3,6 +3,8 @@ package net.driiga;
 import net.driiga.entity.ModEntities;
 import net.driiga.entity.client.absolver.AbsolverModel;
 import net.driiga.entity.client.absolver.AbsolverRenderer;
+import net.driiga.entity.client.light_lance.LightLanceProjectileModel;
+import net.driiga.entity.client.light_lance.LightLanceProjectileRenderer;
 import net.driiga.entity.client.rolly.RollyModel;
 import net.driiga.entity.client.rolly.RollyRenderer;
 import net.driiga.entity.custom.AbsolverEntity;
@@ -41,6 +43,9 @@ public class DriigaCyclesClient implements ClientModInitializer {
 
         EntityModelLayerRegistry.registerModelLayer(RollyModel.ROLLY, RollyModel::getTexturedModelData);
         EntityRendererRegistry.register(ModEntities.ROLLY, RollyRenderer::new);
+
+        EntityModelLayerRegistry.registerModelLayer(LightLanceProjectileModel.LIGHT_LANCE, LightLanceProjectileModel::getTexturedModelData);
+        EntityRendererRegistry.register(ModEntities.LIGHT_LANCE, LightLanceProjectileRenderer::new);
 
 
 //        EntityRendererRegistry.register(ModEntities.ABSOLVER, AbsolverRenderer::new);

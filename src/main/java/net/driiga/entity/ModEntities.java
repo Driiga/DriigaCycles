@@ -3,6 +3,7 @@ package net.driiga.entity;
 import net.driiga.DriigaCycles;
 
 import net.driiga.entity.custom.AbsolverEntity;
+import net.driiga.entity.custom.LightLanceProjectileEntity;
 import net.driiga.entity.custom.RollyEntity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnGroup;
@@ -18,8 +19,14 @@ public class ModEntities {
 
     public static final EntityType<AbsolverEntity> ABSOLVER = Registry.register(Registries.ENTITY_TYPE,
             Identifier.of(DriigaCycles.MOD_ID, "absolver"),
-            EntityType.Builder.create(AbsolverEntity::new, SpawnGroup.MONSTER)
-                    .dimensions(1f, 1f).build());
+            EntityType.Builder.create(AbsolverEntity::new, SpawnGroup.CREATURE)
+                    .dimensions(1f, 2.4f).build());
+
+    public static final EntityType<LightLanceProjectileEntity> LIGHT_LANCE = Registry.register(Registries.ENTITY_TYPE,
+            Identifier.of(DriigaCycles.MOD_ID, "light_lance"),
+            EntityType.Builder.<LightLanceProjectileEntity>create(LightLanceProjectileEntity::new, SpawnGroup.MISC)
+                    .dimensions(0.5f, 0.5f)
+                    .build());
 
 
     public static void registerModEntities() {DriigaCycles.LOGGER.info("registring mod ent for" + DriigaCycles.MOD_ID);
