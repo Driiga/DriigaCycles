@@ -22,6 +22,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.Difficulty;
@@ -65,42 +66,46 @@ public class LightLanceProjectileEntity extends ExplosiveProjectileEntity {
         if (var3 instanceof ServerWorld serverWorld) {
             Entity var8 = entityHitResult.getEntity();
             Entity entity2 = this.getOwner();
-            boolean bl;
-            if (entity2 instanceof LivingEntity livingEntity) {
-                DamageSource damageSource = this.getDamageSources().mobProjectile(this, livingEntity);
-                bl = var8.damage(damageSource, 8.0F);
-                if (bl) {
-                    if (var8.isAlive()) {
-                        EnchantmentHelper.onTargetDamaged(serverWorld, var8, damageSource);
-                    } else {
-                        livingEntity.heal(5.0F);
+            if (var8 != entity2) {
+                boolean bl;
+                if (entity2 instanceof LivingEntity livingEntity) {
+                    DamageSource damageSource = this.getDamageSources().mobProjectile(this, livingEntity);
+                    bl = var8.damage(damageSource, 16.0F);
+                    if (bl) {
+                        if (var8.isAlive()) {
+                            EnchantmentHelper.onTargetDamaged(serverWorld, var8, damageSource);
+                        } else {
+                            livingEntity.heal(5.0F);
+                        }
+                    }
+                } else {
+                    bl = var8.damage(this.getDamageSources().magic(), 5.0F);
+                }
+
+                if (bl && var8 instanceof LivingEntity livingEntity) {
+                    int i = 0;
+                    if (this.getWorld().getDifficulty() == Difficulty.NORMAL) {
+                        i = 10;
+                    } else if (this.getWorld().getDifficulty() == Difficulty.HARD) {
+                        i = 40;
+                    }
+
+                    if (i > 0) {
+                        livingEntity.addStatusEffect(new StatusEffectInstance(StatusEffects.WITHER, 20 * i, 1), this.getEffectCause());
                     }
                 }
-            } else {
-                bl = var8.damage(this.getDamageSources().magic(), 5.0F);
             }
-
-            if (bl && var8 instanceof LivingEntity livingEntity) {
-                int i = 0;
-                if (this.getWorld().getDifficulty() == Difficulty.NORMAL) {
-                    i = 10;
-                } else if (this.getWorld().getDifficulty() == Difficulty.HARD) {
-                    i = 40;
-                }
-
-                if (i > 0) {
-                    livingEntity.addStatusEffect(new StatusEffectInstance(StatusEffects.WITHER, 20 * i, 1), this.getEffectCause());
-                }
-            }
-
         }
     }
 
     protected void onCollision(HitResult hitResult) {
         super.onCollision(hitResult);
         if (!this.getWorld().isClient) {
-            this.getWorld().createExplosion(this, this.getX(), this.getY(), this.getZ(), 1.0F, false, World.ExplosionSourceType.MOB);
-            this.discard();
+            if ( this.getOwner() == null || !(Math.abs(hitResult.getPos().x - this.getOwner().getX()) <= 1))  {
+                this.getWorld().createExplosion(this, this.getX(), this.getY(), this.getZ(), 1.0F, false, World.ExplosionSourceType.MOB);
+                this.discard();
+            }
+
         }
 
     }
@@ -155,7 +160,8 @@ public class LightLanceProjectileEntity extends ExplosiveProjectileEntity {
             this.setupAnimationStates();
         }
 
-        //LOGGER.info(" my owner is " + this.getOwner());
+
+//        //LOGGER.info(" my owner is " + this.getOwner());
         if (this.getOwner() == null)
         {
             //LOGGER.info(" discarding myself :< ");
@@ -163,7 +169,6 @@ public class LightLanceProjectileEntity extends ExplosiveProjectileEntity {
         }
 //        else {
 //
-//            this.setVelocity(this.getOwner().getVelocity());
 //        }
 
 

@@ -1,24 +1,28 @@
 package net.driiga.entity.custom;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ObjectArrays;
-import net.driiga.util.ModTags;
+import net.driiga.sound.ModSounds;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.*;
 import net.minecraft.entity.ai.RangedAttackMob;
 import net.minecraft.entity.ai.TargetPredicate;
 import net.minecraft.entity.ai.control.MoveControl;
 import net.minecraft.entity.ai.goal.*;
-import net.minecraft.entity.ai.pathing.BirdNavigation;
-import net.minecraft.entity.ai.pathing.EntityNavigation;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffectUtil;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.*;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket;
 import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
@@ -30,12 +34,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-import java.lang.reflect.Array;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Predicate;
 
 import static net.driiga.DriigaCycles.MOD_ID;
 
@@ -44,10 +45,12 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public final AnimationState idleAnimationState = new AnimationState();
     private int idleAnimationTimeout = 0;
-    private static final TrackedData<Integer> TRACKED_ENTITY_ID_1;
+    public final AnimationState attackAnimationState = new AnimationState();
+    private int attackAnimationTimeout = 0;
+//    private static final TrackedData<Integer> TRACKED_ENTITY_ID_1;
     private int blockBreakingCooldown;
-    private static final Predicate<LivingEntity> CAN_ATTACK_PREDICATE;
-    private static final TargetPredicate HEAD_TARGET_PREDICATE;
+//    private static final Predicate<LivingEntity> CAN_ATTACK_PREDICATE;
+//    private static final TargetPredicate HEAD_TARGET_PREDICATE;
 
     //Lances
     private static final TrackedData<Integer> TRACKED_LANCE_ID_1;
@@ -57,6 +60,7 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
     private static final TrackedData<Integer> TRACKED_LANCE_ID_5;
     private static final List<TrackedData<Integer>> TRACKED_LANCES_IDS;
     private static final TrackedData<Boolean> HAS_LANCES;
+    private static final TrackedData<Boolean> SHOOOTING;
     private int lancesSummonCooldown = 20;
     private int lancesShootCooldown = -60;
 
@@ -69,10 +73,10 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
 
     public static DefaultAttributeContainer.Builder createAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 6)
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 80)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.6)
-                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 1)
-                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 40)
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 5)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 30)
                 .add(EntityAttributes.GENERIC_FLYING_SPEED, (double) 0.6F);
     }
 
@@ -82,13 +86,13 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
         return !block.isAir() && !block.isIn(BlockTags.WITHER_IMMUNE);
     }
 
-    public int getTrackedEntityId() {
-        return (Integer) this.dataTracker.get(TRACKED_ENTITY_ID_1);
-    }
-
-    public void setTrackedEntityId(int id) {
-        this.dataTracker.set(TRACKED_ENTITY_ID_1, id);
-    }
+//    public int getTrackedEntityId() {
+//        return (Integer) this.dataTracker.get(TRACKED_ENTITY_ID_1);
+//    }
+//
+//    public void setTrackedEntityId(int id) {
+//        this.dataTracker.set(TRACKED_ENTITY_ID_1, id);
+//    }
 
     public int getTrackedLancesId(int lanceIndex) {
         return (Integer) this.dataTracker.get((TrackedData) TRACKED_LANCES_IDS.get(lanceIndex));
@@ -106,7 +110,15 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
         this.dataTracker.set(HAS_LANCES, has_lances);
     }
 
-    private void   summoneHaloOfLances() {
+    public boolean getShootingStatus() {
+        return (Boolean) this.dataTracker.get(SHOOOTING);
+    }
+
+    public void setShootingStatus(boolean is_shooting) {
+        this.dataTracker.set(SHOOOTING, is_shooting);
+    }
+
+    private void summonHaloOfLances() {
 
         double X = this.getX();
         double Y = this.getY();
@@ -139,26 +151,24 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
     private void shootLancesAt(double targetX, double targetY, double targetZ) {
 
         this.setLanceStatus(false);
-        int delay = 5000;
-        int count = 0;
 
         for (int i = 0; i < 5; i++) {
 
-            while (count < delay) {
-                count++;
+            Entity lance = this.getWorld().getEntityById(getTrackedLancesId(i));
+
+            if (lance != null) {
+                double X = lance.getX();
+                double Y = lance.getY();
+                double Z = lance.getZ();
+                double tX = targetX - X - this.random.nextBetweenExclusive(0, 3);
+                double tY = targetY - Y - this.random.nextBetweenExclusive(0, 1);
+                double tZ = targetZ - Z - this.random.nextBetweenExclusive(0, 3);
+                Vec3d vec3d = new Vec3d(tX, tY, tZ);
+
+
+                getWorld().getEntityById(getTrackedLancesId(i)).setVelocity(vec3d.normalize());
+
             }
-
-            double X = this.getWorld().getEntityById(getTrackedLancesId(i)).getX();
-            double Y = this.getWorld().getEntityById(getTrackedLancesId(i)).getY();
-            double Z = this.getWorld().getEntityById(getTrackedLancesId(i)).getZ();
-            double tX = targetX - X - this.random.nextBetweenExclusive(0,2);
-            double tY = targetY - Y - this.random.nextBetweenExclusive(0,1);
-            double tZ = targetZ - Z - this.random.nextBetweenExclusive(0,2);
-            Vec3d vec3d = new Vec3d(tX, tY, tZ);
-
-
-            getWorld().getEntityById(getTrackedLancesId(i)).setVelocity(vec3d.normalize());
-            count = 0;
         }
     }
 
@@ -173,8 +183,9 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
 
     protected void initDataTracker(DataTracker.Builder builder) {
         super.initDataTracker(builder);
-        builder.add(TRACKED_ENTITY_ID_1, 0);
+//        builder.add(TRACKED_ENTITY_ID_1, 0);
         builder.add(HAS_LANCES, false);
+        builder.add(SHOOOTING, false);
         builder.add(TRACKED_LANCE_ID_1, 0);
         builder.add(TRACKED_LANCE_ID_2, 0);
         builder.add(TRACKED_LANCE_ID_3, 0);
@@ -183,10 +194,12 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
     }
 
     static {
-        TRACKED_ENTITY_ID_1 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
-        CAN_ATTACK_PREDICATE = (entity) -> !entity.getType().isIn(ModTags.Entity.ABSOLVER_FRIENDS) && entity.isMobOrPlayer();
-        HEAD_TARGET_PREDICATE = TargetPredicate.createAttackable().setBaseMaxDistance((double) 20.0F).setPredicate(CAN_ATTACK_PREDICATE);
+//        TRACKED_ENTITY_ID_1 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
+//        CAN_ATTACK_PREDICATE = (entity) -> !entity.getType().isIn(ModTags.Entity.ABSOLVER_FRIENDS) && entity.isMobOrPlayer();
+////        CAN_ATTACK_PREDICATE = (entity) -> Math.abs(entity.getY() - this.getY()) <= (double)4.0F;
+//        HEAD_TARGET_PREDICATE = TargetPredicate.createAttackable().setBaseMaxDistance((double) 20F).setPredicate(CAN_ATTACK_PREDICATE);
         HAS_LANCES = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+        SHOOOTING = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
         TRACKED_LANCE_ID_1 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
         TRACKED_LANCE_ID_2 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
         TRACKED_LANCE_ID_3 = DataTracker.registerData(AbsolverEntity.class, TrackedDataHandlerRegistry.INTEGER);
@@ -199,9 +212,35 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
 
     protected void initGoals() {
         this.goalSelector.add(5, new FlyRandomlyGoal(this));
-        this.goalSelector.add(7, new LookAtTargetGoal(this));
-        this.targetSelector.add(2, new ActiveTargetGoal(this, LivingEntity.class, 0, false, false, CAN_ATTACK_PREDICATE));
+        this.goalSelector.add(1, new LookAtTargetGoal(this));
+        this.goalSelector.add(7, new LookAroundGoal(this));
+//        this.goalSelector.add(4, new GuideLances(this));
+//        this.goalSelector.add(3, new ShootLanceslGoal(this));
+        this.targetSelector.add(3, new FindTargetGoal());
+//        this.targetSelector.add(2, new ActiveTargetGoal(this, LivingEntity.class, 0, false, false, CAN_ATTACK_PREDICATE));
     }
+
+    /// анимации
+
+    private void setupAnimationStates() {
+        if (this.idleAnimationTimeout <= 0 && this.getLanceStatus()) {
+            //this.attackAnimationState.stop();
+            this.idleAnimationTimeout = 80;
+            this.idleAnimationState.start(this.age);
+        } else {
+            --this.idleAnimationTimeout;
+        }
+
+//        if (this.getShootingStatus()) {
+//            this.setShootingStatus(false);
+//            this.idleAnimationState.stop();
+//            this.attackAnimationTimeout = 20;
+//            this.attackAnimationState.start(this.age);
+//        } else {
+//            --this.attackAnimationTimeout;
+//        }
+    }
+
 
     /// передвижение
 
@@ -234,7 +273,7 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
         private boolean willCollide(Vec3d direction, int steps) {
             Box box = this.absolver.getBoundingBox();
 
-            for(int i = 1; i < steps; ++i) {
+            for (int i = 1; i < steps; ++i) {
                 box = box.offset(direction);
                 if (!this.absolver.getWorld().isSpaceEmpty(this.absolver, box)) {
                     return false;
@@ -248,22 +287,38 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
 
     /// --------------------------------------- ///
 
+    @Override
+    public void tick() {
+        super.tick();
+
+        if (this.getWorld().isClient()) {
+            this.setupAnimationStates();
+        }
+        LOGGER.info("attack anim cd: " + this.attackAnimationTimeout);
+        LOGGER.info("get shooting " + this.getShootingStatus());
+    }
 
     public void mobTick() {
         super.mobTick();
 
         this.lancesShootCooldown++;
         this.lancesSummonCooldown++;
+//        this.attackAnimationTimeout++;
+//        if (this.attackAnimationTimeout >= 20) {
+//            this.attackAnimationState.stop();
+//            //this.idleAnimationState.start(this.age);
+//        }
         //LOGGER.info(" ---- ");
 
         if (this.getLanceStatus() == false) {
             if (this.lancesSummonCooldown > 80) {
                 this.lancesSummonCooldown = 0 + this.random.nextInt(10);
-                this.summoneHaloOfLances();
+                this.summonHaloOfLances();
 
             }
 
         } else { //has Lances
+
 
             Vec3d vec3d1 = new Vec3d(this.getFacing().getUnitVector().rotateY(-40)).multiply(2);
             Vec3d vec3d2 = new Vec3d(this.getFacing().getUnitVector().rotateY(-20)).multiply(2);
@@ -275,41 +330,57 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
 
             for (int i = 0; i < 5; i++) {
                 Entity lance = this.getWorld().getEntityById(getTrackedLancesId(i));
-//                Vec3d vec3d1 = new Vec3d(lance.getFacing().getUnitVector()).multiply(0.5);
-//                Vec3d vec3d2 = new Vec3d(this.getX() - lance.getX(), this.getY() +5 - lance.getY(), this.getZ() - lance.getZ()).multiply(0.5);
-//                Vec3d vec3d3 = new Vec3d(vec3d1.toVector3f().add(vec3d2.toVector3f()));
-                Vec3d vec3d6 = new Vec3d(this.getX() + vecArray[i].x - lance.getX(), this.getY() + 5 - lance.getY(), this.getZ() + vecArray[i].z - lance.getZ());
-                lance.setVelocity(vec3d6.multiply(0.1));
+                if (lance != null) {
+                    Vec3d vec3d6 = new Vec3d(lance.getVelocity().toVector3f());
+                    Vec3d vec3d7 = new Vec3d(this.getX() + vecArray[i].x - lance.getX(), this.getY() + 5 - lance.getY(), this.getZ() + vecArray[i].z - lance.getZ()).multiply(0.4);
+                    Vec3d vec3d8 = new Vec3d(vec3d6.toVector3f().add(vec3d7.toVector3f()));
+                    //Vec3d vec3d9 = new Vec3d(this.getX() + vecArray[i].x - lance.getX(), this.getY() + 5 - lance.getY(), this.getZ() + vecArray[i].z - lance.getZ());
+                    lance.setVelocity(vec3d8.multiply(0.1));
+                }
+
             }
 
 
             if (this.lancesShootCooldown > 40) {
-                int j = this.getTrackedEntityId();
-                if (j > 0) {
-                    LivingEntity livingEntity = (LivingEntity) this.getWorld().getEntityById(j);
+//                int j = this.getTrackedEntityId();
+                if (this.getTarget() != null) {
+                    LivingEntity livingEntity = (LivingEntity) this.getTarget();
                     if (livingEntity != null && this.canTarget(livingEntity) && !(this.squaredDistanceTo(livingEntity) > (double) 900.0F) && this.canSee(livingEntity)) {
                         this.setLanceStatus(false);
+                        //this.setShootingStatus(true);
+//                        this.idleAnimationState.stop();
+//                        this.attackAnimationState.start(this.age);
+//                        this.attackAnimationTimeout = 0;
+                        this.getWorld().playSound(this, this.getBlockPos(), ModSounds.ABSOLVER_SHRIEK, SoundCategory.HOSTILE, 30f, 1f);
+                            StatusEffectInstance statusEffectInstance = new StatusEffectInstance(StatusEffects.NAUSEA, 200, 5);
+                            List<ServerPlayerEntity> list = StatusEffectUtil.addEffectToPlayersWithinDistance((ServerWorld)this.getWorld(), this, this.getPos(), (double)50.0F, statusEffectInstance, 1200);
+                            //list.forEach((serverPlayerEntity) -> serverPlayerEntity.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.ELDER_GUARDIAN_EFFECT, this.isSilent() ? 0.0F : 1.0F)));
+
                         this.shootLancesAt(livingEntity);
+
+
+//                        this.setGuideStatus(true);
                         this.lancesShootCooldown = 0 + this.random.nextInt(10);
                     } else {
-                        this.setTrackedEntityId(0);
+//                        this.setTrackedEntityId(0);
                     }
                 } else {
-                    List<LivingEntity> list = this.getWorld().getTargets(LivingEntity.class, HEAD_TARGET_PREDICATE, this, this.getBoundingBox().expand((double) 20.0F, (double) 8.0F, (double) 20.0F));
-                    if (!list.isEmpty()) {
-                        LivingEntity livingEntity2 = (LivingEntity) list.get(this.random.nextInt(list.size()));
-                        this.setTrackedEntityId(livingEntity2.getId());
-                    }
+//                    List<LivingEntity> list = this.getWorld().getTargets(LivingEntity.class, HEAD_TARGET_PREDICATE, this, this.getBoundingBox().expand((double) 20.0F, (double) 8.0F, (double) 20.0F));
+//                    if (!list.isEmpty()) {
+//                        LivingEntity livingEntity2 = (LivingEntity) list.get(this.random.nextInt(list.size()));
+//                        this.setTrackedEntityId(livingEntity2.getId());
+//                        //this.setTarget(livingEntity2);
+//                    }
                 }
             }
         }
 
 
-        if (this.getTarget() != null) {
-            this.setTrackedEntityId(this.getTarget().getId());
-        } else {
-            this.setTrackedEntityId(0);
-        }
+//        if (this.getTarget() != null) {
+//            this.setTrackedEntityId(this.getTarget().getId());
+//        } else {
+//            this.setTrackedEntityId(0);
+//        }
 
         if (this.blockBreakingCooldown > 0) {
             --this.blockBreakingCooldown;
@@ -360,7 +431,7 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
         }
 
         public void start() {
-            if (this.absolver.getTrackedEntityId() == 0) {
+            if (this.absolver.getTarget() == null) {
                 Random random = this.absolver.getRandom();
                 double d = this.absolver.getX() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
                 double e = this.absolver.getY() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 14.0F);
@@ -368,9 +439,9 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
                 this.absolver.getMoveControl().moveTo(d, e, f, (double) 1.0F);
             } else {
                 Random random = this.absolver.getRandom();
-                double d = this.absolver.getWorld().getEntityById(this.absolver.getTrackedEntityId()).getX() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
-                double e = this.absolver.getWorld().getEntityById(this.absolver.getTrackedEntityId()).getY() + (double) ((random.nextBetween(5,10)));
-                double f = this.absolver.getWorld().getEntityById(this.absolver.getTrackedEntityId()).getZ() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
+                double d = this.absolver.getTarget().getX() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
+                double e = this.absolver.getTarget().getY() + (double) ((random.nextBetween(5, 10)));
+                double f = this.absolver.getTarget().getZ() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
                 this.absolver.getMoveControl().moveTo(d, e, f, (double) 1.0F);
             }
         }
@@ -413,8 +484,48 @@ public class AbsolverEntity extends FlyingEntity implements RangedAttackMob {
         }
 
     }
-}
-        /// --------------------------------------- ///
+
+    /// --------------------------------------- ///
+
+        class FindTargetGoal extends Goal {
+            private final TargetPredicate PLAYERS_IN_RANGE_PREDICATE = TargetPredicate.createAttackable().setBaseMaxDistance((double)100.0F);
+            private int delay = toGoalTicks(20);
+
+            public boolean canStart() {
+                if (this.delay > 0) {
+                    --this.delay;
+                    return false;
+                } else {
+                    this.delay = toGoalTicks(60);
+                    List<PlayerEntity> list = AbsolverEntity.this.getWorld().getPlayers(this.PLAYERS_IN_RANGE_PREDICATE, AbsolverEntity.this, AbsolverEntity.this.getBoundingBox().expand((double)30.0F, (double)100.0F, (double)30.0F));
+                    if (!list.isEmpty()) {
+                        list.sort(Comparator.comparing(Entity::getY).reversed());
+
+                        for(PlayerEntity playerEntity : list) {
+                            if (AbsolverEntity.this.isTarget(playerEntity, TargetPredicate.DEFAULT)) {
+                                AbsolverEntity.this.setTarget(playerEntity);
+                                return true;
+                            }
+                        }
+                    }
+
+                    return false;
+                }
+            }
+
+            public boolean shouldContinue() {
+                LivingEntity livingEntity = AbsolverEntity.this.getTarget();
+                return livingEntity != null ? AbsolverEntity.this.isTarget(livingEntity, TargetPredicate.DEFAULT) : false;
+            }
+        }
+
+    /// --------------------------------------- ///
+
+    }
+
+
+
+
 
 
 

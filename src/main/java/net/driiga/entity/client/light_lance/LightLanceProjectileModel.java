@@ -27,7 +27,7 @@ public class LightLanceProjectileModel extends SinglePartEntityModel<LightLanceP
         public static TexturedModelData getTexturedModelData() {
             ModelData modelData = new ModelData();
             ModelPartData modelPartData = modelData.getRoot();
-            ModelPartData body = modelPartData.addChild("body", ModelPartBuilder.create(), ModelTransform.pivot(0.0F, 3.9746F, -1.9355F));
+            ModelPartData body = modelPartData.addChild("body", ModelPartBuilder.create(), ModelTransform.pivot(0.0F, -3.9746F, -1.9355F));
 
             ModelPartData head = body.addChild("head", ModelPartBuilder.create().uv(0, 0).cuboid(-1.0F, -0.9746F, -9.9355F, 2.0F, 2.0F, 30.0F, new Dilation(0.0F)), ModelTransform.pivot(0.0F, 0.0F, 0.0F));
 

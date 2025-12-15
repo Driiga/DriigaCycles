@@ -32,7 +32,7 @@ public class LightLanceProjectileRenderer extends EntityRenderer<LightLanceProje
     public void render(LightLanceProjectileEntity LightLanceProjectileEntity, float f, float g, MatrixStack matrixStack,
                        VertexConsumerProvider vertexConsumerProvider, int i) {
         matrixStack.push();
-        matrixStack.scale(-1.0F, 1.0F, 1.0F);
+        matrixStack.scale(-1F, -1.0F, 1F);
         float h = MathHelper.lerpAngleDegrees(g, LightLanceProjectileEntity.prevYaw, LightLanceProjectileEntity.getYaw());
         float j = MathHelper.lerp(g, LightLanceProjectileEntity.prevPitch, LightLanceProjectileEntity.getPitch());
         VertexConsumer vertexConsumer = vertexConsumerProvider.getBuffer(this.model.getLayer(this.getTexture(LightLanceProjectileEntity)));

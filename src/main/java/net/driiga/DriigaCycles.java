@@ -6,6 +6,7 @@ import net.driiga.entity.custom.AbsolverEntity;
 import net.driiga.entity.custom.RollyEntity;
 import net.driiga.fluid.ModFluids;
 import net.driiga.item.ModItems;
+import net.driiga.sound.ModSounds;
 import net.driiga.util.PathBuilder;
 import net.fabricmc.api.ModInitializer;
 
@@ -51,6 +52,7 @@ public class DriigaCycles implements ModInitializer {
         ModBlocks.registerFluidBlock();
         ModBlocks.registerModBlocks();
         ModItems.registerModItems();
+        ModSounds.registerSounds();
 
 
         ModEntities.registerModEntities();
