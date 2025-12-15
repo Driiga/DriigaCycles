@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "driiga-cycles:block/condensed_matter_block"
+    }
+  }
+}

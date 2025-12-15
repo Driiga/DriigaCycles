@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "driiga-cycles:block/entropic_ore_block"
+    }
+  }
+}

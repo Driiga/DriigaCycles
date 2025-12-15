@@ -1,0 +1,4 @@
+// 1.21.1	2025-12-14T11:12:30.14435	DriigaCycles/Tags for minecraft:block
+c0592021987fab8455f6e49bda9e99c13daf8aa2 data\minecraft\tags\block\mineable\shovel.json
+e97044a8367869842709e09ceae9e459d705523f data\minecraft\tags\block\mineable\pickaxe.json
+e97044a8367869842709e09ceae9e459d705523f data\minecraft\tags\block\needs_diamond_tool.json

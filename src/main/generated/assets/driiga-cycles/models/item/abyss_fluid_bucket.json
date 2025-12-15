@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "driiga-cycles:item/abyss_fluid_bucket"
+  }
+}
